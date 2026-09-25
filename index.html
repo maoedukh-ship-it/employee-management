@@ -1,0 +1,965 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>HRM System — Workforce Management</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Fraunces:wght@600;700&family=Kantumruy+Pro:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --ink: #17253c;
+      --muted: #708098;
+      --line: #e5eaf0;
+      --navy: #14253e;
+      --accent: #e86648;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; color: var(--ink); font-family: 'DM Sans', 'Kantumruy Pro', sans-serif; background: #f5f7fa; }
+    button, input, select, textarea { font: inherit; }
+    button { cursor: pointer; }
+    button:disabled { cursor: not-allowed; opacity: .6; }
+    :focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+
+    .app-shell { width: 100%; min-height: 100vh; padding-left: 252px; display: flex; flex-direction: column; }
+    .sidebar {
+      position: fixed; left: 0; top: 0; bottom: 0; width: 252px; z-index: 25;
+      background: var(--navy); color: #fff; display: flex; flex-direction: column;
+      overflow-y: auto; overscroll-behavior: contain; padding: 24px 14px 20px;
+      scrollbar-color: #52657e transparent; scrollbar-width: thin;
+    }
+    .brand-mark { width: 35px; height: 35px; display: grid; place-items: center; background: var(--accent); border-radius: 11px; color: white; font-weight: 800; flex: none; }
+    .brand-name { font-size: 20px; font-weight: 800; letter-spacing: -.04em; }
+    .side-nav { margin-top: 25px; }
+    .nav-item {
+      width: 100%; display: flex; align-items: center; gap: 11px; text-align: left;
+      color: #c2cede; border: 1px solid transparent; border-radius: 10px;
+      padding: 9px 11px; margin: 2px 0; min-height: 38px; font-size: 13px;
+      font-weight: 600; line-height: 1.25; transition: all .2s ease;
+    }
+    .nav-item svg { width: 17px; height: 17px; flex: none; transition: transform .2s; }
+    .nav-item:hover { background: #203753; color: #fff; transform: translateX(3px); }
+    .nav-item.is-active { background: #263c58; border-color: #3b506a; color: #fff; box-shadow: inset 3px 0 var(--accent); }
+
+    .workspace { min-width: 0; padding: 32px clamp(16px, 3.5vw, 50px) 60px; flex: 1; }
+    .surface { background: #fff; border: 1px solid var(--line); box-shadow: 0 10px 30px rgba(20, 37, 62, .03); }
+    
+    /* Touch & Hover Animations */
+    .stat-card-interactive {
+      cursor: pointer;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+      transition: transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.22s ease, border-color 0.22s ease;
+    }
+    .stat-card-interactive .card-icon-wrap {
+      transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    .stat-card-interactive:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 16px 28px -8px rgba(20, 37, 62, 0.12);
+      border-color: #d7e0ea;
+    }
+    .stat-card-interactive:hover .card-icon-wrap {
+      transform: scale(1.12) rotate(-4deg);
+    }
+    .stat-card-interactive:active {
+      transform: scale(0.97) translateY(0);
+      box-shadow: 0 4px 10px rgba(20, 37, 62, 0.08);
+    }
+
+    .eyebrow { text-transform: uppercase; letter-spacing: .16em; font-size: 11px; font-weight: 800; }
+    .page-heading { font-family: 'Fraunces', serif; letter-spacing: -.03em; line-height: 1.15; }
+    .field { width: 100%; border: 1px solid #dce3eb; background: white; border-radius: 10px; padding: 10px 12px; color: var(--ink); outline: none; }
+    .field:focus { border-color: var(--accent); box-shadow: 0 0 0 3px #e8664826; }
+    .field-label { display: block; font-size: 12px; font-weight: 700; margin-bottom: 6px; color: #40516a; }
+    .action {
+      display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+      border-radius: 10px; padding: 10px 16px; font-weight: 700; font-size: 13.5px;
+      transition: transform .18s, background .18s;
+    }
+    .action:hover:not(:disabled) { transform: translateY(-2px); }
+    .action:active:not(:disabled) { transform: translateY(0) scale(.98); }
+    .ghost { background: #f3f6f9; color: #30445e; }
+    .avatar { width: 38px; height: 38px; flex: none; display: grid; place-items: center; border-radius: 12px; background: #fce8df; color: #a74b32; font-weight: 800; }
+    .badge { display: inline-block; padding: 4px 9px; border-radius: 30px; font-size: 11px; font-weight: 700; white-space: nowrap; }
+    .badge.active, .badge.approved, .badge.completed, .badge.present { background: #e3f5e9; color: #267746; }
+    .badge.inactive, .badge.rejected, .badge.cancelled { background: #eef0f4; color: #58677a; }
+    .badge.on-leave, .badge.pending, .badge.late, .badge.in-progress { background: #fff1da; color: #986219; }
+    .data-table { width: 100%; border-collapse: collapse; text-align: left; }
+    .data-table th { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: #7e8ba0; background: #f8fafc; padding: 13px 18px; white-space: nowrap; }
+    .data-table td { padding: 13px 18px; border-top: 1px solid #eef1f5; font-size: 13px; }
+    .data-table tbody tr:hover { background: #fafbfc; }
+    .icon-button { border-radius: 8px; padding: 7px; color: #617189; }
+    .icon-button:hover { background: #f0f3f7; color: #17253c; }
+    .dialog-backdrop { position: fixed; inset: 0; z-index: 50; background: #101f35a8; display: flex; align-items: center; justify-content: center; padding: 16px; }
+    .dialog-panel { width: min(720px, 100%); max-height: 90vh; overflow: auto; background: #fff; border-radius: 20px; box-shadow: 0 30px 100px #09142655; }
+    .profile-panel { width: min(500px, 100%); }
+    [hidden] { display: none !important; }
+    .view-container { display: none; }
+    .view-container.active-view { display: block; animation: rise .45s both; }
+    @keyframes rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    .mobile-bar, .mobile-scrim { display: none; }
+
+    @media (max-width: 850px) {
+      .app-shell { padding-left: 0; padding-top: 60px; }
+      .sidebar { width: min(280px, 85vw); top: 60px; transform: translateX(-105%); transition: transform .25s; box-shadow: 20px 0 45px #09142644; }
+      .sidebar.is-open { transform: translateX(0); }
+      .sidebar .brand-row { display: none; }
+      .mobile-bar { position: fixed; top: 0; left: 0; right: 0; height: 60px; z-index: 30; display: flex; align-items: center; justify-content: space-between; padding: 0 18px; background: #14253e; color: white; }
+      .mobile-scrim.is-open { display: block; position: fixed; inset: 60px 0 0; background: #101f3580; z-index: 20; }
+      .workspace { padding: 20px 14px 40px; }
+    }
+  </style>
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <script src="https://cdn.jsdelivr.net/npm/lucide@0.577.0/dist/umd/lucide.min.js"></script>
+</head>
+<body class="w-full">
+  <header class="mobile-bar">
+    <div class="flex items-center gap-3">
+      <span class="brand-mark app-logo-symbol" aria-hidden="true">H</span>
+      <strong class="app-logo-text">HRM System<span class="text-[#e86648]">.</span></strong>
+    </div>
+    <button id="menu-toggle" type="button" aria-label="Open navigation" class="p-2 rounded-lg hover:bg-[#263c58]">
+      <i data-lucide="menu"></i>
+    </button>
+  </header>
+  <div id="mobile-scrim" class="mobile-scrim"></div>
+
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar">
+      <div class="brand-row flex items-center gap-3 px-2 mb-2">
+        <span class="brand-mark app-logo-symbol" aria-hidden="true">H</span>
+        <span class="brand-name app-logo-text">HRM System<span class="text-[#e86648]">.</span></span>
+      </div>
+      <nav id="main-navigation" class="side-nav">
+        <p class="eyebrow text-[#8fa2bd] px-3 mb-2 text-xs">WORKSPACE</p>
+        <button type="button" data-view="dashboard" class="nav-item is-active"><i data-lucide="layout-dashboard"></i><span>Dashboard</span></button>
+        <button type="button" data-view="employees" class="nav-item"><i data-lucide="users"></i><span>Employee Management</span></button>
+        <button type="button" data-view="organization" class="nav-item"><i data-lucide="network"></i><span>Organization</span></button>
+        <button type="button" data-view="attendance" class="nav-item"><i data-lucide="calendar-check"></i><span>Attendance</span></button>
+        <button type="button" data-view="leave" class="nav-item"><i data-lucide="calendar-days"></i><span>Leave Management</span></button>
+        <button type="button" data-view="compensation" class="nav-item"><i data-lucide="wallet"></i><span>Compensation &amp; Benefits</span></button>
+        <button type="button" data-view="learning" class="nav-item"><i data-lucide="graduation-cap"></i><span>Learning &amp; Development</span></button>
+        <button type="button" data-view="performance" class="nav-item"><i data-lucide="chart-no-axes-combined"></i><span>Performance Management</span></button>
+        <button type="button" data-view="documents" class="nav-item"><i data-lucide="files"></i><span>Employee Documents</span></button>
+        <button type="button" data-view="lifecycle" class="nav-item"><i data-lucide="refresh-cw"></i><span>Employee Lifecycle</span></button>
+        <button type="button" data-view="reports" class="nav-item"><i data-lucide="chart-pie"></i><span>Reports &amp; Analytics</span></button>
+        <button type="button" data-view="notifications" class="nav-item"><i data-lucide="bell"></i><span>Notifications</span></button>
+        <button type="button" data-view="users" class="nav-item"><i data-lucide="users-round"></i><span>User Management</span></button>
+        <button type="button" data-view="settings" class="nav-item"><i data-lucide="settings"></i><span>System Settings</span></button>
+        <button type="button" data-view="account" class="nav-item"><i data-lucide="circle-user-round"></i><span>My Account</span></button>
+      </nav>
+      <p class="text-[#a9b8cb] leading-relaxed mt-auto pt-5 px-3 text-xs">HRM Operations &amp; Intelligence.</p>
+    </aside>
+
+    <main class="workspace">
+      <div id="notice" role="status" aria-live="polite" hidden class="mb-5 rounded-xl border px-4 py-3 text-sm"></div>
+
+      <!-- VIEW 1: DASHBOARD -->
+      <div id="view-dashboard" class="view-container active-view">
+        <header class="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-7">
+          <div>
+            <p class="eyebrow text-[#e86648] font-bold mb-1.5">YOUR WORKFORCE, AT A GLANCE</p>
+            <h1 class="page-heading font-bold text-3xl md:text-4xl text-[#17253c]">Employee directory</h1>
+            <p class="mt-1 text-[#708098] text-sm">Organized employee management across operations, stores, and head office.</p>
+          </div>
+          <button id="add-button" class="action bg-[#e86648] text-white shadow-md shadow-[#e8664830] self-start sm:self-auto" type="button">
+            <i data-lucide="plus" class="w-4 h-4"></i><span>Add employee</span>
+          </button>
+        </header>
+
+        <section class="grid grid-cols-1 xl:grid-cols-[1fr_310px] gap-5 mb-7">
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <article id="card-total" class="stat-card-interactive surface rounded-2xl p-5" tabindex="0">
+              <span class="card-icon-wrap inline-flex rounded-xl bg-[#e8edf5] p-2.5 text-[#435b7e]"><i data-lucide="users" class="w-5 h-5"></i></span>
+              <p id="total-count" class="mt-4 font-extrabold text-3xl">0</p>
+              <h2 class="mt-1 text-[#708098] font-semibold text-xs tracking-wide">TOTAL EMPLOYEES</h2>
+            </article>
+
+            <article id="card-active" class="stat-card-interactive surface rounded-2xl p-5" tabindex="0">
+              <span class="card-icon-wrap inline-flex rounded-xl bg-[#e4f5e9] p-2.5 text-[#358457]"><i data-lucide="user-check" class="w-5 h-5"></i></span>
+              <p id="active-count" class="mt-4 font-extrabold text-3xl">0</p>
+              <h2 class="mt-1 text-[#708098] font-semibold text-xs tracking-wide">ACTIVE EMPLOYEES</h2>
+            </article>
+
+            <article id="card-inactive" class="stat-card-interactive surface rounded-2xl p-5" tabindex="0">
+              <span class="card-icon-wrap inline-flex rounded-xl bg-[#fff0e8] p-2.5 text-[#d56746]"><i data-lucide="user-minus" class="w-5 h-5"></i></span>
+              <p id="inactive-count" class="mt-4 font-extrabold text-3xl">0</p>
+              <h2 class="mt-1 text-[#708098] font-semibold text-xs tracking-wide">AWAY OR INACTIVE</h2>
+            </article>
+          </div>
+
+          <article class="surface rounded-2xl p-5 flex flex-col">
+            <h2 class="font-bold text-[#17253c] mb-2 text-sm">By Department</h2>
+            <div class="relative h-32 flex-1 min-h-[130px]">
+              <canvas id="department-chart" role="img"></canvas>
+            </div>
+          </article>
+        </section>
+
+        <!-- Directory Table -->
+        <section id="directory" class="surface rounded-2xl overflow-hidden">
+          <div class="p-5 border-b border-[#e9edf2]">
+            <div class="flex items-center justify-between gap-3 mb-4">
+              <div>
+                <h2 class="font-bold text-lg text-[#17253c]">Team Members</h2>
+                <p class="text-xs text-[#708098]">Select an employee to see quick details or edit.</p>
+              </div>
+              <span id="result-count" class="rounded-full bg-[#f2f5f9] px-3 py-1 text-xs font-bold text-[#60718a]">0 records</span>
+            </div>
+            <div class="flex flex-col md:flex-row gap-3">
+              <div class="relative flex-1">
+                <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8491a4]"></i>
+                <input id="search" class="field pl-9 text-sm" type="search" placeholder="Search by name, role, email or ID...">
+              </div>
+              <div class="w-full md:w-48">
+                <select id="department-filter" class="field text-sm"><option value="">All Departments</option></select>
+              </div>
+              <div class="w-full md:w-36">
+                <select id="status-filter" class="field text-sm">
+                  <option value="">All Statuses</option>
+                  <option value="Active">Active</option>
+                  <option value="On leave">On leave</option>
+                  <option value="Inactive">Inactive</option>
+                </select>
+              </div>
+            </div>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Employee</th>
+                  <th>ID</th>
+                  <th>Department</th>
+                  <th>Position</th>
+                  <th>Type</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="employee-rows"></tbody>
+            </table>
+          </div>
+          <div id="empty-state" class="text-center py-12 px-4" hidden>
+            <p class="font-bold text-[#17253c]">No employees found</p>
+            <p class="text-xs text-[#708098] mt-1">Try resetting the filter search.</p>
+          </div>
+        </section>
+      </div>
+
+      <!-- VIEW 2: ORGANIZATION -->
+      <div id="view-organization" class="view-container">
+        <header class="mb-6">
+          <p class="eyebrow text-[#e86648] font-bold mb-1">STRUCTURE & UNITS</p>
+          <h1 class="page-heading font-bold text-3xl text-[#17253c]">Organization Tree</h1>
+          <p class="text-sm text-[#708098] mt-1">Hierarchical breakdown by business units and department leads.</p>
+        </header>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+          <div class="surface rounded-2xl p-5 border-t-4 border-t-[#0057E7]">
+            <div class="flex items-center justify-between mb-3">
+              <span class="badge active">HQ Central</span>
+              <i data-lucide="building" class="w-5 h-5 text-blue-600"></i>
+            </div>
+            <h3 class="font-bold text-base">Executive Operations</h3>
+            <p class="text-xs text-gray-500 mt-1">Lead: Sovannara Keo (COO)</p>
+            <div class="mt-4 pt-4 border-t border-gray-100 text-xs flex justify-between">
+              <span>Departments: <strong>4</strong></span>
+              <span>Employees: <strong>48</strong></span>
+            </div>
+          </div>
+          <div class="surface rounded-2xl p-5 border-t-4 border-t-[#A4C842]">
+            <div class="flex items-center justify-between mb-3">
+              <span class="badge active">Retail & Branch</span>
+              <i data-lucide="store" class="w-5 h-5 text-emerald-600"></i>
+            </div>
+            <h3 class="font-bold text-base">Store Business Partners (SBP)</h3>
+            <p class="text-xs text-gray-500 mt-1">Lead: Amara Diallo (Operations Head)</p>
+            <div class="mt-4 pt-4 border-t border-gray-100 text-xs flex justify-between">
+              <span>Branches: <strong>14</strong></span>
+              <span>Employees: <strong>112</strong></span>
+            </div>
+          </div>
+          <div class="surface rounded-2xl p-5 border-t-4 border-t-[#e86648]">
+            <div class="flex items-center justify-between mb-3">
+              <span class="badge active">Digital Campus</span>
+              <i data-lucide="graduation-cap" class="w-5 h-5 text-orange-600"></i>
+            </div>
+            <h3 class="font-bold text-base">Learning & Instructional Design</h3>
+            <p class="text-xs text-gray-500 mt-1">Lead: Dara Sok (L&D Supervisor)</p>
+            <div class="mt-4 pt-4 border-t border-gray-100 text-xs flex justify-between">
+              <span>Programs: <strong>6 Active</strong></span>
+              <span>Learners: <strong>230+</strong></span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- VIEW 3: ATTENDANCE -->
+      <div id="view-attendance" class="view-container">
+        <header class="flex justify-between items-end mb-6">
+          <div>
+            <p class="eyebrow text-[#e86648] font-bold mb-1">DAILY TIME RECORD (DTR)</p>
+            <h1 class="page-heading font-bold text-3xl text-[#17253c]">Attendance Records</h1>
+            <p class="text-sm text-[#708098] mt-1">Real-time check-in logs integrated with Telegram Bot & Google Apps Script.</p>
+          </div>
+          <button class="action bg-[#14253e] text-white"><i data-lucide="download" class="w-4 h-4"></i>Export Log</button>
+        </header>
+        <div class="surface rounded-2xl overflow-hidden">
+          <table class="data-table">
+            <thead>
+              <tr><th>Employee</th><th>Date</th><th>Check In</th><th>Check Out</th><th>Method</th><th>Status</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><strong>Elena Rostova</strong></td><td>Today</td><td>07:54 AM</td><td>05:02 PM</td><td>Fingerprint</td><td><span class="badge present">On Time</span></td></tr>
+              <tr><td><strong>Dara Sok</strong></td><td>Today</td><td>08:02 AM</td><td>Pending</td><td>Telegram Bot</td><td><span class="badge present">On Time</span></td></tr>
+              <tr><td><strong>Amara Diallo</strong></td><td>Today</td><td>08:35 AM</td><td>Pending</td><td>Mobile QR</td><td><span class="badge late">Late (35m)</span></td></tr>
+              <tr><td><strong>Sophia Vargas</strong></td><td>Today</td><td>07:48 AM</td><td>05:00 PM</td><td>Web Portal</td><td><span class="badge present">On Time</span></td></tr>
+              <tr><td><strong>Marcus Chen</strong></td><td>Today</td><td>—</td><td>—</td><td>—</td><td><span class="badge on-leave">On Leave</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- VIEW 4: LEAVE MANAGEMENT -->
+      <div id="view-leave" class="view-container">
+        <header class="flex justify-between items-end mb-6">
+          <div>
+            <p class="eyebrow text-[#e86648] font-bold mb-1">TIME-OFF REQUESTS</p>
+            <h1 class="page-heading font-bold text-3xl text-[#17253c]">Leave Management</h1>
+            <p class="text-sm text-[#708098] mt-1">Review pending leave applications and approve balances.</p>
+          </div>
+          <button class="action bg-[#e86648] text-white"><i data-lucide="plus" class="w-4 h-4"></i>Apply Leave</button>
+        </header>
+        <div class="surface rounded-2xl overflow-hidden">
+          <table class="data-table">
+            <thead>
+              <tr><th>Staff</th><th>Type</th><th>Duration</th><th>Dates</th><th>Reason</th><th>Decision</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><strong>Marcus Chen</strong></td><td>Parental Leave</td><td>30 Days</td><td>Oct 01 - Oct 31</td><td>Family Care</td><td><span class="badge approved">Approved</span></td></tr>
+              <tr><td><strong>Liam Kavanagh</strong></td><td>Annual Leave</td><td>3 Days</td><td>Nov 05 - Nov 07</td><td>Personal travel</td><td><span class="badge pending">Pending</span></td></tr>
+              <tr><td><strong>Sophia Vargas</strong></td><td>Sick Leave</td><td>1 Day</td><td>Yesterday</td><td>Medical checkup</td><td><span class="badge approved">Approved</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- VIEW 5: COMPENSATION & BENEFITS -->
+      <div id="view-compensation" class="view-container">
+        <header class="mb-6">
+          <p class="eyebrow text-[#e86648] font-bold mb-1">PAYROLL & COMP</p>
+          <h1 class="page-heading font-bold text-3xl text-[#17253c]">Compensation & Benefits</h1>
+          <p class="text-sm text-[#708098] mt-1">Monthly wage distribution, allowances, and incentives.</p>
+        </header>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-5 mb-6">
+          <div class="surface rounded-2xl p-5">
+            <p class="text-xs text-gray-500 font-bold uppercase">Estimated Monthly Payroll</p>
+            <p class="text-2xl font-bold mt-2 text-[#17253c]">$34,850.00</p>
+            <span class="text-xs text-emerald-600 font-semibold mt-1 inline-block">100% processed for cycle</span>
+          </div>
+          <div class="surface rounded-2xl p-5">
+            <p class="text-xs text-gray-500 font-bold uppercase">Health & Insurance Pool</p>
+            <p class="text-2xl font-bold mt-2 text-[#17253c]">$4,200.00</p>
+            <span class="text-xs text-blue-600 font-semibold mt-1 inline-block">All active staff enrolled</span>
+          </div>
+          <div class="surface rounded-2xl p-5">
+            <p class="text-xs text-gray-500 font-bold uppercase">Bonus / Incentive Pool</p>
+            <p class="text-2xl font-bold mt-2 text-[#17253c]">$2,900.00</p>
+            <span class="text-xs text-orange-600 font-semibold mt-1 inline-block">Store Partner Rewards</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- VIEW 6: LEARNING & DEVELOPMENT -->
+      <div id="view-learning" class="view-container">
+        <header class="flex justify-between items-end mb-6">
+          <div>
+            <p class="eyebrow text-[#e86648] font-bold mb-1">UPSKILLING & CAPACITY BUILDING</p>
+            <h1 class="page-heading font-bold text-3xl text-[#17253c]">Learning & Development</h1>
+            <p class="text-sm text-[#708098] mt-1">Saturday Learning programs, OJT requests, and AI workflow workshops.</p>
+          </div>
+          <button class="action bg-[#e86648] text-white"><i data-lucide="book-open" class="w-4 h-4"></i>New Course</button>
+        </header>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <div class="surface rounded-2xl p-5">
+            <div class="flex justify-between items-start">
+              <div>
+                <span class="badge in-progress">Active Training</span>
+                <h3 class="font-bold text-base mt-2">Saturday Learning Program — Store Mastery</h3>
+                <p class="text-xs text-gray-500 mt-1">Audience: Store Business Partners (SBP)</p>
+              </div>
+              <span class="text-xl font-black text-[#e86648]">92%</span>
+            </div>
+            <div class="w-full bg-gray-100 h-2 rounded-full mt-4 overflow-hidden">
+              <div class="bg-[#e86648] h-full" style="width: 92%"></div>
+            </div>
+            <p class="text-xs text-gray-400 mt-3">Target Completion: End of Q3</p>
+          </div>
+          <div class="surface rounded-2xl p-5">
+            <div class="flex justify-between items-start">
+              <div>
+                <span class="badge completed">Completed</span>
+                <h3 class="font-bold text-base mt-2">Google Apps Script & AI Integration</h3>
+                <p class="text-xs text-gray-500 mt-1">Automation for enterprise internal feedback and logging.</p>
+              </div>
+              <span class="text-xl font-black text-emerald-600">100%</span>
+            </div>
+            <div class="w-full bg-gray-100 h-2 rounded-full mt-4 overflow-hidden">
+              <div class="bg-emerald-500 h-full" style="width: 100%"></div>
+            </div>
+            <p class="text-xs text-gray-400 mt-3">Facilitated by L&D Specialist</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- VIEW 7: PERFORMANCE MANAGEMENT -->
+      <div id="view-performance" class="view-container">
+        <header class="mb-6">
+          <p class="eyebrow text-[#e86648] font-bold mb-1">EVALUATIONS & KPIS</p>
+          <h1 class="page-heading font-bold text-3xl text-[#17253c]">Performance Management</h1>
+          <p class="text-sm text-[#708098] mt-1">Staff quarterly OKR tracking, peer reviews, and rating indexes.</p>
+        </header>
+        <div class="surface rounded-2xl overflow-hidden">
+          <table class="data-table">
+            <thead>
+              <tr><th>Employee</th><th>Period</th><th>KPI Score</th><th>Appraiser</th><th>Status</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><strong>Dara Sok</strong></td><td>Q3 2026</td><td><span class="font-bold text-emerald-600">4.8 / 5.0 (Exceeds)</span></td><td>Director of HR</td><td><span class="badge completed">Finalized</span></td></tr>
+              <tr><td><strong>Elena Rostova</strong></td><td>Q3 2026</td><td><span class="font-bold text-emerald-600">4.9 / 5.0 (Exceeds)</span></td><td>VP of Tech</td><td><span class="badge completed">Finalized</span></td></tr>
+              <tr><td><strong>Amara Diallo</strong></td><td>Q3 2026</td><td><span class="font-bold text-blue-600">4.5 / 5.0 (Meets)</span></td><td>COO</td><td><span class="badge in-progress">In Review</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- VIEW 8: DOCUMENTS -->
+      <div id="view-documents" class="view-container">
+        <header class="flex justify-between items-end mb-6">
+          <div>
+            <p class="eyebrow text-[#e86648] font-bold mb-1">DIGITAL ARCHIVE</p>
+            <h1 class="page-heading font-bold text-3xl text-[#17253c]">Employee Documents</h1>
+            <p class="text-sm text-[#708098] mt-1">Contracts, N-D-A files, certifications, and identification scans.</p>
+          </div>
+          <button class="action bg-[#e86648] text-white"><i data-lucide="upload" class="w-4 h-4"></i>Upload File</button>
+        </header>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div class="surface rounded-2xl p-4 flex items-center gap-3">
+            <i data-lucide="file-text" class="w-8 h-8 text-blue-500"></i>
+            <div>
+              <p class="font-bold text-xs truncate">Standard_Employment_Agreement.pdf</p>
+              <span class="text-[11px] text-gray-400">1.4 MB • Updated July 2026</span>
+            </div>
+          </div>
+          <div class="surface rounded-2xl p-4 flex items-center gap-3">
+            <i data-lucide="shield-check" class="w-8 h-8 text-emerald-500"></i>
+            <div>
+              <p class="font-bold text-xs truncate">NDA_Corporate_Policy_2026.pdf</p>
+              <span class="text-[11px] text-gray-400">820 KB • Mandatory signing</span>
+            </div>
+          </div>
+          <div class="surface rounded-2xl p-4 flex items-center gap-3">
+            <i data-lucide="award" class="w-8 h-8 text-orange-500"></i>
+            <div>
+              <p class="font-bold text-xs truncate">Top_Store_Performance_Cert.pdf</p>
+              <span class="text-[11px] text-gray-400">2.1 MB • Award Asset</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- VIEW 9: EMPLOYEE LIFECYCLE -->
+      <div id="view-lifecycle" class="view-container">
+        <header class="mb-6">
+          <p class="eyebrow text-[#e86648] font-bold mb-1">ONBOARDING & OFFBOARDING</p>
+          <h1 class="page-heading font-bold text-3xl text-[#17253c]">Employee Lifecycle</h1>
+          <p class="text-sm text-[#708098] mt-1">Milestones from recruitment, probationary review, to offboarding.</p>
+        </header>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+          <div class="surface rounded-2xl p-5">
+            <h3 class="font-bold text-sm text-[#e86648] mb-3">Onboarding (3)</h3>
+            <div class="p-3 bg-gray-50 rounded-xl mb-2 text-xs">
+              <strong>Kosal Chan</strong> — Junior Designer<br>
+              <span class="text-gray-400">Day 4 of 30 • Equipment Issued</span>
+            </div>
+            <div class="p-3 bg-gray-50 rounded-xl text-xs">
+              <strong>Vireak Seng</strong> — IT Support<br>
+              <span class="text-gray-400">Day 12 of 30 • Training in Progress</span>
+            </div>
+          </div>
+          <div class="surface rounded-2xl p-5">
+            <h3 class="font-bold text-sm text-blue-600 mb-3">Probation Evaluation (1)</h3>
+            <div class="p-3 bg-gray-50 rounded-xl text-xs">
+              <strong>Amara Diallo</strong> — SBP Lead<br>
+              <span class="text-gray-400">Evaluation Date: In 10 Days</span>
+            </div>
+          </div>
+          <div class="surface rounded-2xl p-5">
+            <h3 class="font-bold text-sm text-gray-500 mb-3">Offboarding / Exit (1)</h3>
+            <div class="p-3 bg-gray-50 rounded-xl text-xs">
+              <strong>Liam Kavanagh</strong> — Marketing<br>
+              <span class="text-gray-400">Contract End Handover Completed</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- VIEW 10: REPORTS & ANALYTICS -->
+      <div id="view-reports" class="view-container">
+        <header class="mb-6">
+          <p class="eyebrow text-[#e86648] font-bold mb-1">INSIGHTS & AUDIT</p>
+          <h1 class="page-heading font-bold text-3xl text-[#17253c]">Reports & Analytics</h1>
+          <p class="text-sm text-[#708098] mt-1">Executive summaries on headcount growth, retention, and department ratios.</p>
+        </header>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+          <div class="surface rounded-2xl p-5">
+            <p class="text-xs text-gray-500 font-bold uppercase">Turnover Rate</p>
+            <p class="text-3xl font-extrabold mt-2 text-emerald-600">2.1%</p>
+            <p class="text-xs text-gray-400 mt-1">Significantly below industry standard</p>
+          </div>
+          <div class="surface rounded-2xl p-5">
+            <p class="text-xs text-gray-500 font-bold uppercase">Average Tenure</p>
+            <p class="text-3xl font-extrabold mt-2 text-[#17253c]">2.4 Years</p>
+            <p class="text-xs text-gray-400 mt-1">Based on full-time active team</p>
+          </div>
+          <div class="surface rounded-2xl p-5">
+            <p class="text-xs text-gray-500 font-bold uppercase">Training Completion Rate</p>
+            <p class="text-3xl font-extrabold mt-2 text-blue-600">96.4%</p>
+            <p class="text-xs text-gray-400 mt-1">Across Saturday Learning modules</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- VIEW 11: NOTIFICATIONS -->
+      <div id="view-notifications" class="view-container">
+        <header class="mb-6">
+          <p class="eyebrow text-[#e86648] font-bold mb-1">INBOX & ALERTS</p>
+          <h1 class="page-heading font-bold text-3xl text-[#17253c]">Notifications</h1>
+          <p class="text-sm text-[#708098] mt-1">System automated messages and Telegram bot dispatch logs.</p>
+        </header>
+        <div class="surface rounded-2xl p-4 divide-y divide-gray-100">
+          <div class="py-3 flex gap-3 items-center">
+            <span class="w-8 h-8 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-xs">OK</span>
+            <div class="flex-1">
+              <p class="text-xs font-bold text-[#17253c]">Leave Application Approved</p>
+              <p class="text-xs text-gray-500">Marcus Chen's parental leave request was signed off by HR.</p>
+            </div>
+            <span class="text-[11px] text-gray-400">10m ago</span>
+          </div>
+          <div class="py-3 flex gap-3 items-center">
+            <span class="w-8 h-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-xs"><i data-lucide="bot" class="w-4 h-4"></i></span>
+            <div class="flex-1">
+              <p class="text-xs font-bold text-[#17253c]">Telegram Attendance Sync</p>
+              <p class="text-xs text-gray-500">Attendance log for morning shift synchronized to Google Sheets automatically.</p>
+            </div>
+            <span class="text-[11px] text-gray-400">1h ago</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- VIEW 12: USER MANAGEMENT -->
+      <div id="view-users" class="view-container">
+        <header class="flex justify-between items-end mb-6">
+          <div>
+            <p class="eyebrow text-[#e86648] font-bold mb-1">SECURITY & ROLES</p>
+            <h1 class="page-heading font-bold text-3xl text-[#17253c]">User Management</h1>
+            <p class="text-sm text-[#708098] mt-1">Control access rights, role assignments, and login permissions.</p>
+          </div>
+          <button class="action bg-[#e86648] text-white"><i data-lucide="user-plus" class="w-4 h-4"></i>New User</button>
+        </header>
+        <div class="surface rounded-2xl overflow-hidden">
+          <table class="data-table">
+            <thead>
+              <tr><th>Username / User</th><th>Role</th><th>Permission Level</th><th>Status</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><strong>Admin User</strong><br><span class="text-xs text-gray-400">admin@hrmsystem.io</span></td><td>Super Admin</td><td>Full System Access</td><td><span class="badge active">Active</span></td></tr>
+              <tr><td><strong>Dara Sok</strong><br><span class="text-xs text-gray-400">dara.sok@hrmsystem.io</span></td><td>L&D Manager</td><td>Training & Employee Edit</td><td><span class="badge active">Active</span></td></tr>
+              <tr><td><strong>Auditor Team</strong><br><span class="text-xs text-gray-400">audit@hrmsystem.io</span></td><td>Viewer</td><td>Read Only</td><td><span class="badge active">Active</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- VIEW 13: SETTINGS -->
+      <div id="view-settings" class="view-container">
+        <header class="mb-6">
+          <p class="eyebrow text-[#e86648] font-bold mb-1">CONFIGURATION</p>
+          <h1 class="page-heading font-bold text-3xl text-[#17253c]">System Settings</h1>
+          <p class="text-sm text-[#708098] mt-1">Configure system branding, Google Apps Script webhooks, and integrations.</p>
+        </header>
+        <div class="surface rounded-2xl p-6 max-w-2xl space-y-4">
+          <div>
+            <label class="field-label" for="settings-brand-input">Company / Brand Name</label>
+            <input id="settings-brand-input" class="field text-sm" value="HRM System">
+          </div>
+          <div>
+            <label class="field-label" for="settings-webhook-input">Google Apps Script Webhook URL</label>
+            <input id="settings-webhook-input" class="field text-sm" value="https://script.google.com/macros/s/AKfycb.../exec">
+          </div>
+          <div>
+            <label class="field-label" for="settings-currency-input">Default Currency</label>
+            <input id="settings-currency-input" class="field text-sm" value="USD ($)">
+          </div>
+          <button id="save-settings-btn" type="button" class="action bg-[#e86648] text-white">Save Changes</button>
+        </div>
+      </div>
+
+      <!-- VIEW 14: MY ACCOUNT -->
+      <div id="view-account" class="view-container">
+        <header class="mb-6">
+          <p class="eyebrow text-[#e86648] font-bold mb-1">PROFILE PREFERENCES</p>
+          <h1 class="page-heading font-bold text-3xl text-[#17253c]">My Account</h1>
+          <p class="text-sm text-[#708098] mt-1">Manage personal authentication, avatar, and security tokens.</p>
+        </header>
+        <div class="surface rounded-2xl p-6 max-w-xl">
+          <div class="flex items-center gap-4 mb-5">
+            <div class="w-16 h-16 rounded-2xl bg-[#e86648] text-white text-2xl font-bold flex items-center justify-center">MD</div>
+            <div>
+              <h3 class="font-bold text-lg text-[#17253c]">Mao Doeum</h3>
+              <p class="text-xs text-gray-500">Instructional Design & Learning Tech Specialist</p>
+            </div>
+          </div>
+          <div class="space-y-3 text-sm">
+            <div><span class="text-gray-400 block text-xs">Email Address:</span> <strong>user@hrmsystem.io</strong></div>
+            <div><span class="text-gray-400 block text-xs">Security:</span> <strong>2-Factor Authentication Enabled</strong></div>
+            <div><span class="text-gray-400 block text-xs">Assigned Scope:</span> <strong>Administrator & Content Lead</strong></div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Add/Edit Employee Dialog -->
+  <div id="form-dialog" class="dialog-backdrop" hidden>
+    <div class="dialog-panel" role="dialog" aria-modal="true">
+      <div class="sticky top-0 z-10 flex items-center justify-between bg-white px-6 py-4 border-b border-[#e5eaf0]">
+        <h2 id="form-add-heading" class="font-bold text-lg text-[#17253c]">Add New Employee</h2>
+        <h2 id="form-edit-heading" class="font-bold text-lg text-[#17253c]" hidden>Edit Employee</h2>
+        <button type="button" class="icon-button close-dialog"><i data-lucide="x"></i></button>
+      </div>
+      <form id="employee-form" class="p-6" novalidate>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div><label class="field-label" for="first_name">First Name *</label><input class="field text-sm" id="first_name" required></div>
+          <div><label class="field-label" for="last_name">Last Name *</label><input class="field text-sm" id="last_name" required></div>
+          <div><label class="field-label" for="employee_id">Employee ID *</label><input class="field text-sm" id="employee_id" required></div>
+          <div><label class="field-label" for="email">Work Email *</label><input class="field text-sm" id="email" type="email" required></div>
+          <div><label class="field-label" for="phone">Phone Number</label><input class="field text-sm" id="phone" type="tel"></div>
+          <div><label class="field-label" for="department">Department *</label><input class="field text-sm" id="department" required list="department-options">
+            <datalist id="department-options">
+              <option value="Engineering"></option>
+              <option value="Operations"></option>
+              <option value="Learning & Development"></option>
+              <option value="Product & Design"></option>
+              <option value="Human Resources"></option>
+            </datalist>
+          </div>
+          <div><label class="field-label" for="position">Position *</label><input class="field text-sm" id="position" required></div>
+          <div><label class="field-label" for="status">Status *</label>
+            <select class="field text-sm" id="status">
+              <option>Active</option>
+              <option>On leave</option>
+              <option>Inactive</option>
+            </select>
+          </div>
+          <div><label class="field-label" for="employment_type">Employment Type</label>
+            <select class="field text-sm" id="employment_type">
+              <option>Full-time</option>
+              <option>Part-time</option>
+              <option>Contract</option>
+            </select>
+          </div>
+          <div><label class="field-label" for="salary">Monthly Base Salary ($)</label><input class="field text-sm" id="salary" type="number"></div>
+        </div>
+        <p id="form-error" role="alert" hidden class="mt-4 text-xs font-semibold text-red-700"></p>
+        <div class="flex justify-end gap-3 mt-6 pt-4 border-t border-[#e5eaf0]">
+          <button type="button" class="action ghost close-dialog">Cancel</button>
+          <button id="save-button" type="submit" class="action bg-[#e86648] text-white">Save Record</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Employee Profile Dialog -->
+  <div id="profile-dialog" class="dialog-backdrop" hidden>
+    <div class="dialog-panel profile-panel" role="dialog" aria-modal="true">
+      <div class="flex justify-between items-center px-6 py-4 border-b border-[#e5eaf0]">
+        <h2 class="font-bold text-lg text-[#17253c]">Employee Overview</h2>
+        <button class="icon-button close-dialog" type="button"><i data-lucide="x"></i></button>
+      </div>
+      <div class="p-6">
+        <div class="flex items-center gap-4 mb-6">
+          <div id="profile-avatar" class="avatar w-14 h-14 text-base"></div>
+          <div>
+            <h3 id="profile-name" class="font-bold text-xl text-[#17253c]"></h3>
+            <p id="profile-role" class="text-xs text-[#708098]"></p>
+          </div>
+        </div>
+        <dl id="profile-details" class="grid grid-cols-[120px_1fr] gap-x-2 gap-y-3 text-xs border-t border-[#e5eaf0] pt-4"></dl>
+        <div class="flex justify-end gap-3 mt-6">
+          <button id="profile-delete" class="action ghost text-red-600" type="button">Delete</button>
+          <button id="profile-edit" class="action bg-[#e86648] text-white" type="button">Edit Profile</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const SAMPLE_EMPLOYEES = [
+      { __backendId: "emp_1", employee_id: "EMP-001", first_name: "Elena", last_name: "Rostova", email: "elena.r@hrmsystem.io", phone: "+1 555-0192", department: "Engineering", position: "Lead Frontend Engineer", status: "Active", employment_type: "Full-time", salary: 8500 },
+      { __backendId: "emp_2", employee_id: "EMP-002", first_name: "Dara", last_name: "Sok", email: "dara.sok@hrmsystem.io", phone: "+855 12 889 001", department: "Learning & Development", position: "Instructional Design Supervisor", status: "Active", employment_type: "Full-time", salary: 6500 },
+      { __backendId: "emp_3", employee_id: "EMP-003", first_name: "Marcus", last_name: "Chen", email: "m.chen@hrmsystem.io", phone: "+1 555-0344", department: "Product & Design", position: "Senior UX Designer", status: "On leave", employment_type: "Full-time", salary: 7200 },
+      { __backendId: "emp_4", employee_id: "EMP-004", first_name: "Amara", last_name: "Diallo", email: "a.diallo@hrmsystem.io", phone: "+1 555-0821", department: "Operations", position: "Store Business Partner Lead", status: "Active", employment_type: "Full-time", salary: 6000 },
+      { __backendId: "emp_5", employee_id: "EMP-005", first_name: "Sophia", last_name: "Vargas", email: "sophia.v@hrmsystem.io", phone: "+1 555-0455", department: "Human Resources", position: "HR Operations Specialist", status: "Active", employment_type: "Full-time", salary: 5200 },
+      { __backendId: "emp_6", employee_id: "EMP-006", first_name: "Liam", last_name: "Kavanagh", email: "liam.k@hrmsystem.io", phone: "+1 555-0988", department: "Marketing", position: "Campaign Manager", status: "Inactive", employment_type: "Contract", salary: 5000 }
+    ];
+
+    const records = new Map();
+    let chart = null, editingId = null, profileId = null;
+
+    const $ = id => document.getElementById(id);
+    const fullName = r => `${r.first_name || ''} ${r.last_name || ''}`.trim() || 'Unnamed';
+    const initials = r => `${(r.first_name || '?')[0]}${(r.last_name || '')[0] || ''}`.toUpperCase();
+    const safe = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+    function navigate(button) {
+      document.querySelectorAll('.nav-item').forEach(btn => btn.classList.remove('is-active'));
+      button.classList.add('is-active');
+
+      const view = button.dataset.view;
+      document.querySelectorAll('.view-container').forEach(c => c.classList.remove('active-view'));
+
+      if (view === 'employees' || view === 'dashboard') {
+        $('view-dashboard').classList.add('active-view');
+        if (view === 'employees') {
+          setTimeout(() => $('directory').scrollIntoView({ behavior: 'smooth' }), 50);
+        }
+      } else {
+        const target = $(`view-${view}`);
+        if (target) target.classList.add('active-view');
+      }
+
+      $('sidebar').classList.remove('is-open');$('mobile-scrim').classList.remove('is-open');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function renderRows() {
+      const q = $('search').value.trim().toLowerCase();
+      const dep = $('department-filter').value;
+      const status = $('status-filter').value;
+
+      const filtered = [...records.values()].filter(r =>
+        (!dep || r.department === dep) &&
+        (!status || r.status === status) &&
+        (!q || [r.first_name, r.last_name, r.email, r.employee_id, r.position, r.department].join(' ').toLowerCase().includes(q))
+      );
+
+      const tbody = $('employee-rows');
+      tbody.innerHTML = filtered.map(r => {
+        const badgeCls = r.status === 'Active' ? 'active' : (r.status === 'On leave' ? 'on-leave' : 'inactive');
+        return `<tr>
+          <td>
+            <button type="button" data-action="view" data-id="${r.__backendId}" class="flex items-center gap-3 text-left hover:underline">
+              <span class="avatar">${safe(initials(r))}</span>
+              <span>
+                <strong class="block whitespace-nowrap text-[#17253c] text-xs">${safe(fullName(r))}</strong>
+                <small class="text-[#8090a3] text-[11px]">${safe(r.email)}</small>
+              </span>
+            </button>
+          </td>
+          <td class="font-semibold text-gray-500 text-xs">${safe(r.employee_id)}</td>
+          <td>${safe(r.department)}</td>
+          <td>${safe(r.position)}</td>
+          <td>${safe(r.employment_type || 'Full-time')}</td>
+          <td><span class="badge ${badgeCls}">${safe(r.status)}</span></td>
+          <td>
+            <div class="flex gap-1">
+              <button type="button" data-action="edit" data-id="${r.__backendId}" class="icon-button" aria-label="Edit employee"><i data-lucide="pencil" class="w-4 h-4"></i></button>
+              <button type="button" data-action="view" data-id="${r.__backendId}" class="icon-button" aria-label="View profile"><i data-lucide="eye" class="w-4 h-4"></i></button>
+            </div>
+          </td>
+        </tr>`;
+      }).join('');
+
+      $('empty-state').hidden = filtered.length > 0;
+      $('result-count').textContent = `${filtered.length} record${filtered.length === 1 ? '' : 's'}`;
+      lucide.createIcons();
+    }
+
+    function renderSummary() {
+      const all = [...records.values()];
+      $('total-count').textContent = all.length;
+      $('active-count').textContent = all.filter(r => r.status === 'Active').length;
+      $('inactive-count').textContent = all.filter(r => r.status !== 'Active').length;
+
+      const counts = {};
+      all.forEach(r => {
+        const key = r.department?.trim() || 'General';
+        counts[key] = (counts[key] || 0) + 1;
+      });
+
+      const labels = Object.keys(counts);
+      if (chart) chart.destroy();
+      chart = new Chart($('department-chart'), {
+        type: 'doughnut',
+        data: {
+          labels,
+          datasets: [{
+            data: labels.map(k => counts[k]),
+            backgroundColor: ['#e86648', '#243d5e', '#79a89a', '#e9b86e', '#8296be', '#bd8d9c'],
+            borderWidth: 0,
+            hoverOffset: 6
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          cutout: '70%',
+          plugins: {
+            legend: { position: 'right', labels: { boxWidth: 8, font: { size: 9 }, color: '#60718a' } }
+          }
+        }
+      });
+
+      const select = $('department-filter');
+      select.innerHTML = '<option value="">All Departments</option>' + labels.map(l => `<option value="${safe(l)}">${safe(l)}</option>`).join('');
+    }
+
+    function openForm(record = null) {
+      editingId = record?.__backendId || null;
+      $('employee-form').reset();$('form-add-heading').hidden = !!record;
+      $('form-edit-heading').hidden = !record;
+      if (record) {
+        ['first_name', 'last_name', 'employee_id', 'email', 'phone', 'department', 'position', 'status', 'employment_type', 'salary'].forEach(f => {
+          if ($(f))$(f).value = record[f] ?? '';
+        });
+      }
+      $('form-dialog').hidden = false;
+    }
+
+    function openProfile(id) {
+      const r = records.get(id);
+      if (!r) return;
+      profileId = id;
+      $('profile-avatar').textContent = initials(r);
+      $('profile-name').textContent = fullName(r);$('profile-role').textContent = `${r.position} • ${r.department}`;
+      
+      const items = [
+        ['Employee ID', r.employee_id],
+        ['Work Email', r.email],
+        ['Phone', r.phone || 'N/A'],
+        ['Employment', r.employment_type || 'Full-time'],
+        ['Status', r.status],
+        ['Base Salary', r.salary ? `$${Number(r.salary).toLocaleString()}` : 'Confidential']
+      ];
+      $('profile-details').innerHTML = items.map(([k, v]) => `<dt class="text-gray-400">${safe(k)}</dt><dd class="font-bold text-[#17253c]">${safe(v)}</dd>`).join('');
+      $('profile-dialog').hidden = false;
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      lucide.createIcons();
+
+      // Sample Data Load
+      SAMPLE_EMPLOYEES.forEach(e => records.set(e.__backendId, e));
+      renderSummary();
+      renderRows();
+
+      // Mobile Menu
+      $('menu-toggle').addEventListener('click', () => {
+        const isOpen = $('sidebar').classList.toggle('is-open');$('mobile-scrim').classList.toggle('is-open', isOpen);
+      });
+      $('mobile-scrim').addEventListener('click', () => {
+        $('sidebar').classList.remove('is-open');$('mobile-scrim').classList.remove('is-open');
+      });
+
+      // Navigation
+      document.querySelectorAll('.nav-item').forEach(btn => btn.addEventListener('click', () => navigate(btn)));
+
+      // Touch / Click card filtering
+      $('card-total').addEventListener('click', () => { $('status-filter').value = ''; renderRows();$('directory').scrollIntoView({ behavior: 'smooth' }); });
+      $('card-active').addEventListener('click', () => {$('status-filter').value = 'Active'; renderRows(); $('directory').scrollIntoView({ behavior: 'smooth' }); });$('card-inactive').addEventListener('click', () => { $('status-filter').value = 'Inactive'; renderRows();$('directory').scrollIntoView({ behavior: 'smooth' }); });
+
+      // Filters
+      ['search', 'department-filter', 'status-filter'].forEach(id => $(id).addEventListener(id === 'search' ? 'input' : 'change', renderRows));
+
+      // Table Action Delegation
+      $('employee-rows').addEventListener('click', e => {
+        const btn = e.target.closest('[data-action]');
+        if (!btn) return;
+        const id = btn.dataset.id;
+        if (btn.dataset.action === 'edit') openForm(records.get(id));
+        else openProfile(id);
+      });
+
+      // Modals
+      $('add-button').addEventListener('click', () => openForm());
+      document.querySelectorAll('.close-dialog').forEach(btn => btn.addEventListener('click', () => {
+        $('form-dialog').hidden = true;
+        $('profile-dialog').hidden = true;
+      }));
+
+      // Employee Form Submit
+      $('employee-form').addEventListener('submit', e => {
+        e.preventDefault();
+        const data = {
+          first_name: $('first_name').value.trim(),
+          last_name: $('last_name').value.trim(),
+          employee_id: $('employee_id').value.trim(),
+          email: $('email').value.trim(),
+          phone: $('phone').value.trim(),
+          department: $('department').value.trim(),
+          position: $('position').value.trim(),
+          status: $('status').value,
+          employment_type: $('employment_type').value,
+          salary: Number($('salary').value) || 0
+        };
+        if (editingId) {
+          data.__backendId = editingId;
+          records.set(editingId, data);
+        } else {
+          data.__backendId = `emp_${Date.now()}`;
+          records.set(data.__backendId, data);
+        }
+        $('form-dialog').hidden = true;
+        renderSummary();
+        renderRows();
+      });
+
+      $('profile-edit').addEventListener('click', () => {
+        if (profileId && records.has(profileId)) {
+          $('profile-dialog').hidden = true;
+          openForm(records.get(profileId));
+        }
+      });
+
+      $('profile-delete').addEventListener('click', () => {
+        if (profileId && records.has(profileId)) {
+          records.delete(profileId);
+          $('profile-dialog').hidden = true;
+          renderSummary();
+          renderRows();
+        }
+      });
+
+      // System Settings Branding Synchronizer
+      $('save-settings-btn').addEventListener('click', () => {
+        const newBrand = $('settings-brand-input').value.trim() || 'HRM System';
+        document.querySelectorAll('.app-logo-text').forEach(el => {
+          el.innerHTML = `${safe(newBrand)}<span class="text-[#e86648]">.</span>`;
+        });
+        document.querySelectorAll('.app-logo-symbol').forEach(el => {
+          el.textContent = newBrand.charAt(0).toUpperCase();
+        });
+        document.title = `${newBrand} — Workforce Management`;
+        
+        const note = $('notice');
+        note.textContent = 'Settings updated successfully.';
+        note.className = 'mb-5 rounded-xl border border-green-200 bg-green-50 text-green-800 px-4 py-3 text-sm';
+        note.hidden = false;
+        setTimeout(() => { note.hidden = true; }, 4000);
+      });
+    });
+  </script>
+</body>
+</html>
